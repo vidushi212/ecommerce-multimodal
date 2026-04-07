@@ -121,9 +121,9 @@ def text_search():
             query, top_k=top_k, expand=expand, **filters
         )
         return jsonify({"results": results, "query": query, "count": len(results)})
-    except Exception as exc:
+    except Exception:
         logger.exception("Text search error")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred during text search."}), 500
 
 
 # ------------------------------------------------------------------
@@ -157,9 +157,9 @@ def image_search():
             image_bytes, top_k=top_k, **filters
         )
         return jsonify({"results": results, "count": len(results)})
-    except Exception as exc:
+    except Exception:
         logger.exception("Image search error")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred during image search."}), 500
 
 
 # ------------------------------------------------------------------
@@ -202,9 +202,9 @@ def hybrid_search():
             query, img, top_k=top_k, alpha=alpha, **filters
         )
         return jsonify({"results": results, "query": query, "count": len(results)})
-    except Exception as exc:
+    except Exception:
         logger.exception("Hybrid search error")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred during hybrid search."}), 500
 
 
 # ------------------------------------------------------------------
@@ -239,9 +239,9 @@ def relevance_feedback():
             query, positive_ids, negative_ids
         )
         return jsonify({"results": results, "count": len(results)})
-    except Exception as exc:
+    except Exception:
         logger.exception("Relevance feedback error")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred during relevance feedback."}), 500
 
 
 # ------------------------------------------------------------------
@@ -276,6 +276,6 @@ def evaluate():
         retrieved_ids = [r["id"] for r in results]
         metrics = evaluate_retrieval(retrieved_ids, relevant_ids, k_values)
         return jsonify({"metrics": metrics, "retrieved_ids": retrieved_ids})
-    except Exception as exc:
+    except Exception:
         logger.exception("Evaluation error")
-        return jsonify({"error": str(exc)}), 500
+        return jsonify({"error": "An internal error occurred during evaluation."}), 500
