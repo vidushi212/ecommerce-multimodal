@@ -25,7 +25,7 @@ A full-stack **Multimodal Information Retrieval System** for fashion e-commerce 
 | **Text Search** | TF-IDF (1-2 gram) + cosine similarity over title + brand |
 | **Image Search** | OpenAI CLIP (ViT-B/32) + FAISS flat index |
 | **Hybrid Search** | Weighted fusion of text + image scores |
-| **Query Expansion** | Domain synonyms + WordNet synsets |
+| **Query Expansion** | Fashion-domain synonyms (no external NLP library) |
 | **Relevance Feedback** | Rocchio algorithm |
 | **Filters** | Brand, min/max price |
 | **Evaluation** | Precision@K, Recall@K, NDCG@K, MAP |
