@@ -58,11 +58,14 @@ def create_app() -> Flask:
         safe_id = "".join(c for c in product_id if c.isalnum() or c == "-")
         if not safe_id:
             return jsonify({"error": "invalid id"}), 400
-        filename = f"{safe_id}.png"
-        images_dir = str(IMAGES_DIR)
-        if (Path(images_dir) / filename).exists():
-            return send_from_directory(images_dir, filename, mimetype="image/png")
-        return jsonify({"error": "image not found"}), 404
+        # send_from_directory handles both path-traversal prevention and 404s.
+        from werkzeug.exceptions import NotFound
+        try:
+            return send_from_directory(
+                str(IMAGES_DIR), f"{safe_id}.png", mimetype="image/png"
+            )
+        except NotFound:
+            return jsonify({"error": "image not found"}), 404
 
     return app
 
