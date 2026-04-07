@@ -91,7 +91,7 @@ def _ends_cvc(word: str) -> bool:
 
 def _porter_stem(word: str) -> str:
     """
-    Simplified Porter stemmer (steps 1a, 1b, 1c, 2, 3, 4, 5a, 5b).
+    Simplified Porter stemmer (steps 1a–5b).
     Handles the most common English inflections without any dependencies.
     """
     if len(word) <= 2:
