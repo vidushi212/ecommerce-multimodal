@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FashionSearch — Multimodal Product Search</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <!-- ================================================================
+       HEADER
+  ================================================================ -->
+  <header class="site-header">
+    <div class="container header-inner">
+      <div class="logo">
+        <span class="logo-icon">👗</span>
+        <span class="logo-text">FashionSearch</span>
+      </div>
+      <nav class="mode-tabs" role="tablist">
+        <button
+          class="tab-btn active"
+          role="tab"
+          aria-selected="true"
+          data-mode="text"
+          id="tab-text"
+        >
+          🔍 Text Search
+        </button>
+        <button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          data-mode="image"
+          id="tab-image"
+        >
+          🖼️ Image Search
+        </button>
+        <button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          data-mode="hybrid"
+          id="tab-hybrid"
+        >
+          ✨ Hybrid Search
+        </button>
+        <button
+          class="tab-btn"
+          role="tab"
+          aria-selected="false"
+          data-mode="evaluate"
+          id="tab-evaluate"
+        >
+          📊 Evaluate
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ================================================================
+       MAIN
+  ================================================================ -->
+  <main class="container">
+
+    <!-- ---- TEXT SEARCH PANEL ---- -->
+    <section class="search-panel" id="panel-text" role="tabpanel">
+      <h2>Text Search</h2>
+      <p class="panel-desc">Search for fashion products using natural language.</p>
+
+      <form class="search-form" id="form-text">
+        <div class="input-row">
+          <input
+            type="text"
+            id="text-query"
+            class="search-input"
+            placeholder='e.g. "red silk saree", "blue denim jeans"'
+            autocomplete="off"
+            required
+          />
+          <button type="submit" class="btn btn-primary">Search</button>
+        </div>
+
+        <!-- Filters -->
+        <details class="filters-panel">
+          <summary>⚙️ Filters &amp; Options</summary>
+          <div class="filters-grid">
+            <div class="filter-group">
+              <label for="text-brand">Brand</label>
+              <input type="text" id="text-brand" placeholder="e.g. Nike" />
+            </div>
+            <div class="filter-group">
+              <label for="text-min-price">Min Price (₹)</label>
+              <input type="number" id="text-min-price" min="0" placeholder="0" />
+            </div>
+            <div class="filter-group">
+              <label for="text-max-price">Max Price (₹)</label>
+              <input type="number" id="text-max-price" min="0" placeholder="5000" />
+            </div>
+            <div class="filter-group">
+              <label for="text-top-k">Results (K)</label>
+              <input type="number" id="text-top-k" min="1" max="50" value="12" />
+            </div>
+            <div class="filter-group checkbox-group">
+              <label>
+                <input type="checkbox" id="text-expand" checked />
+                Query Expansion
+              </label>
+            </div>
+          </div>
+        </details>
+      </form>
+    </section>
+
+    <!-- ---- IMAGE SEARCH PANEL ---- -->
+    <section class="search-panel hidden" id="panel-image" role="tabpanel">
+      <h2>Image Search</h2>
+      <p class="panel-desc">Upload a product image to find visually similar items.</p>
+
+      <form class="search-form" id="form-image" enctype="multipart/form-data">
+        <div class="upload-area" id="upload-area">
+          <input type="file" id="image-input" accept="image/*" hidden />
+          <div class="upload-placeholder" id="upload-placeholder">
+            <span class="upload-icon">📤</span>
+            <p>Drag &amp; drop an image here, or <button type="button" class="link-btn" id="browse-btn">browse</button></p>
+            <p class="upload-hint">Supports JPG, PNG, WEBP</p>
+          </div>
+          <img id="preview-image" class="preview-image hidden" alt="Preview" />
+        </div>
+
+        <div class="filters-grid mt-1">
+          <div class="filter-group">
+            <label for="img-brand">Brand</label>
+            <input type="text" id="img-brand" placeholder="e.g. Zara" />
+          </div>
+          <div class="filter-group">
+            <label for="img-min-price">Min Price (₹)</label>
+            <input type="number" id="img-min-price" min="0" placeholder="0" />
+          </div>
+          <div class="filter-group">
+            <label for="img-max-price">Max Price (₹)</label>
+            <input type="number" id="img-max-price" min="0" placeholder="5000" />
+          </div>
+          <div class="filter-group">
+            <label for="img-top-k">Results (K)</label>
+            <input type="number" id="img-top-k" min="1" max="50" value="12" />
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary mt-1" id="img-search-btn" disabled>
+          🔍 Find Similar Products
+        </button>
+      </form>
+    </section>
+
+    <!-- ---- HYBRID SEARCH PANEL ---- -->
+    <section class="search-panel hidden" id="panel-hybrid" role="tabpanel">
+      <h2>Hybrid Search</h2>
+      <p class="panel-desc">Combine a text query with an image for more precise results.</p>
+
+      <form class="search-form" id="form-hybrid" enctype="multipart/form-data">
+        <div class="input-row">
+          <input
+            type="text"
+            id="hybrid-query"
+            class="search-input"
+            placeholder="Describe what you are looking for…"
+            required
+          />
+        </div>
+
+        <div class="upload-area small mt-1" id="hybrid-upload-area">
+          <input type="file" id="hybrid-image-input" accept="image/*" hidden />
+          <div class="upload-placeholder" id="hybrid-upload-placeholder">
+            <span class="upload-icon">📤</span>
+            <p>Upload reference image — <button type="button" class="link-btn" id="hybrid-browse-btn">browse</button></p>
+          </div>
+          <img id="hybrid-preview-image" class="preview-image hidden" alt="Hybrid Preview" />
+        </div>
+
+        <details class="filters-panel mt-1">
+          <summary>⚙️ Options</summary>
+          <div class="filters-grid">
+            <div class="filter-group">
+              <label for="hybrid-alpha">Text weight (alpha)</label>
+              <input type="range" id="hybrid-alpha" min="0" max="1" step="0.1" value="0.5" />
+              <span id="hybrid-alpha-val">0.5</span>
+            </div>
+            <div class="filter-group">
+              <label for="hybrid-top-k">Results (K)</label>
+              <input type="number" id="hybrid-top-k" min="1" max="50" value="12" />
+            </div>
+          </div>
+        </details>
+
+        <button type="submit" class="btn btn-primary mt-1" id="hybrid-search-btn" disabled>
+          ✨ Hybrid Search
+        </button>
+      </form>
+    </section>
+
+    <!-- ---- EVALUATE PANEL ---- -->
+    <section class="search-panel hidden" id="panel-evaluate" role="tabpanel">
+      <h2>Evaluate Retrieval Quality</h2>
+      <p class="panel-desc">
+        Supply a text query and a comma-separated list of known-relevant product IDs
+        to compute Precision@K, Recall@K, and NDCG@K metrics.
+      </p>
+
+      <form class="search-form" id="form-evaluate">
+        <div class="input-row">
+          <input
+            type="text"
+            id="eval-query"
+            class="search-input"
+            placeholder="Search query…"
+            required
+          />
+        </div>
+        <div class="filter-group mt-1">
+          <label for="eval-relevant">Relevant Product IDs (comma-separated)</label>
+          <input
+            type="text"
+            id="eval-relevant"
+            class="search-input"
+            placeholder="e.g. 1, 42, 300, 1024"
+            required
+          />
+        </div>
+        <div class="filter-group mt-1">
+          <label for="eval-k-values">K values (comma-separated)</label>
+          <input type="text" id="eval-k-values" value="1, 5, 10, 20" class="search-input" />
+        </div>
+        <button type="submit" class="btn btn-primary mt-1">Evaluate</button>
+      </form>
+
+      <div id="eval-results" class="eval-results hidden"></div>
+    </section>
+
+    <!-- ================================================================
+         RESULTS AREA
+    ================================================================ -->
+    <section id="results-section" class="results-section hidden">
+      <div class="results-header">
+        <h3 id="results-title">Results</h3>
+        <div id="feedback-controls" class="feedback-controls hidden">
+          <span class="feedback-hint">Mark results as relevant / not-relevant to refine results:</span>
+          <button class="btn btn-sm btn-secondary" id="apply-feedback-btn">
+            🔄 Apply Feedback
+          </button>
+        </div>
+      </div>
+      <div id="results-grid" class="results-grid"></div>
+    </section>
+
+    <!-- Spinner -->
+    <div id="spinner" class="spinner hidden" aria-label="Loading…">
+      <div class="spinner-ring"></div>
+    </div>
+
+    <!-- Error toast -->
+    <div id="error-toast" class="error-toast hidden" role="alert"></div>
+  </main>
+
+  <!-- ================================================================
+       PRODUCT DETAIL MODAL
+  ================================================================ -->
+  <div id="product-modal" class="modal-overlay hidden" role="dialog" aria-modal="true">
+    <div class="modal-card">
+      <button class="modal-close" id="modal-close" aria-label="Close">✕</button>
+      <img id="modal-image" src="" alt="" class="modal-image" />
+      <div class="modal-info">
+        <h2 id="modal-title"></h2>
+        <p id="modal-brand" class="modal-brand"></p>
+        <div class="modal-prices">
+          <span id="modal-sold-price" class="price-sold"></span>
+          <span id="modal-actual-price" class="price-actual"></span>
+        </div>
+        <a id="modal-url" href="#" target="_blank" rel="noopener noreferrer" class="btn btn-primary">
+          View on Flipkart ↗
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

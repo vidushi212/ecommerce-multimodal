@@ -1,0 +1,18 @@
+flask==3.0.3
+flask-cors==4.0.1
+pandas==2.2.2
+numpy==1.26.4
+scikit-learn==1.4.2
+# Pillow >= 12.1.1 fixes OOB write when loading PSD images (CVE affecting < 12.1.1)
+Pillow==12.1.1
+# torch >= 2.6.0 fixes torch.load RCE vulnerability (affected < 2.6.0)
+torch==2.6.0
+# torchvision 0.21.0 is the release that pairs with torch 2.6.0
+torchvision==0.21.0
+# transformers >= 4.48.0 fixes deserialization of untrusted data (affected < 4.48.0)
+transformers==4.48.0
+faiss-cpu==1.8.0
+requests==2.32.2
+kagglehub==0.2.9
+gunicorn==22.0.0
+python-dotenv==1.0.1
