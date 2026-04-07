@@ -53,7 +53,16 @@ def create_app() -> Flask:
     # Serve local product images
     @app.route("/api/images/<product_id>")
     def serve_image(product_id: str):
-        """Serve a local product image by product ID."""
+        """Serve a local product image by product ID.
+
+        Path traversal is prevented at two layers:
+        1. The product_id is sanitised to alphanumeric chars and hyphens only
+           before being used as a filename, so no directory separators or
+           relative path components can be injected.
+        2. send_from_directory() independently verifies that the resolved
+           file path stays within the declared images directory and raises
+           werkzeug.exceptions.NotFound (→ 404) if not.
+        """
         # Sanitise: only alphanumeric chars and hyphens to prevent path traversal
         safe_id = "".join(c for c in product_id if c.isalnum() or c == "-")
         if not safe_id:
