@@ -35,7 +35,7 @@ FASHION_SYNONYMS: dict[str, list[str]] = {
     "shoes": ["footwear", "sneakers", "boots", "sandals", "heels"],
     "pants": ["trousers", "jeans", "leggings", "palazzos"],
     "bag": ["handbag", "purse", "tote", "clutch", "backpack"],
-    "saree": ["sari", "lehanga", "dupatta"],
+    "saree": ["sari", "lehenga", "dupatta"],
     "red": ["crimson", "maroon", "scarlet"],
     "blue": ["navy", "cobalt", "indigo", "denim"],
     "black": ["dark", "jet"],

@@ -268,7 +268,7 @@ main { padding: 2rem 1.5rem; }
 
 .upload-placeholder p { color: var(--color-muted); font-size: 0.9rem; margin: 0.2rem 0; }
 
-.upload-hint { font-size: 0.78rem !important; }
+.upload-placeholder p.upload-hint { font-size: 0.78rem; }
 
 .preview-image {
   max-width: 100%;
