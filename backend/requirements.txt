@@ -14,9 +14,5 @@ transformers==4.48.0
 faiss-cpu==1.8.0
 requests==2.32.2
 kagglehub==0.2.9
-# nltk 3.9.3 fixes Zip Slip (patched in 3.9.3) and unsafe deserialization (patched in 3.9).
-# One remaining vulnerability (unauthenticated remote shutdown in nltk.app.wordnet_app)
-# has no upstream patch; it is not exploitable here because we never start that web app.
-nltk==3.9.3
 gunicorn==22.0.0
 python-dotenv==1.0.1
