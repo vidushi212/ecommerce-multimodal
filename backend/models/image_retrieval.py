@@ -42,11 +42,15 @@ def _load_clip():
     """Lazy-load the CLIP processor and model."""
     from transformers import CLIPModel, CLIPProcessor
 
-    logger.info("Loading CLIP model: %s", CLIP_MODEL_NAME)
-    processor = CLIPProcessor.from_pretrained(CLIP_MODEL_NAME)
-    model = CLIPModel.from_pretrained(CLIP_MODEL_NAME)
-    model.eval()
-    return processor, model
+    try:
+        logger.info("Loading CLIP model: %s", CLIP_MODEL_NAME)
+        processor = CLIPProcessor.from_pretrained(CLIP_MODEL_NAME)
+        model = CLIPModel.from_pretrained(CLIP_MODEL_NAME)
+        model.eval()
+        return processor, model
+    except Exception as exc:
+        logger.exception("Failed to load CLIP model '%s'", CLIP_MODEL_NAME)
+        raise RuntimeError(f"Failed to load CLIP model '{CLIP_MODEL_NAME}'") from exc
 
 
 def _encode_image(image: Image.Image, processor, model) -> np.ndarray:
@@ -56,12 +60,17 @@ def _encode_image(image: Image.Image, processor, model) -> np.ndarray:
     """
     import torch
 
-    inputs = processor(images=image, return_tensors="pt")
+    inputs = processor(images=image.convert("RGB"), return_tensors="pt")
     with torch.no_grad():
         features = model.get_image_features(**inputs)
     vec = features.squeeze().cpu().numpy().astype(np.float32)
     norm = np.linalg.norm(vec)
-    return vec / norm if norm > 0 else vec
+    if not np.isfinite(norm) or norm <= 0:
+        raise ValueError("Invalid CLIP embedding norm for image.")
+    normalised = vec / norm
+    if not np.all(np.isfinite(normalised)):
+        raise ValueError("CLIP embedding contains non-finite values.")
+    return normalised
 
 
 class ImageRetrieval:
@@ -74,32 +83,55 @@ class ImageRetrieval:
         self._ids: list[str] = []
         self._faiss_index = None
         self._df: pd.DataFrame | None = None
+        self._init_error: str | None = None
 
     # ------------------------------------------------------------------
     # Initialisation helpers
     # ------------------------------------------------------------------
 
+    def _normalise_embeddings(self) -> None:
+        """L2-normalise embedding matrix in-place with zero-safe handling."""
+        if self._embeddings is None or self._embeddings.size == 0:
+            return
+        norms = np.linalg.norm(self._embeddings, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        self._embeddings = (self._embeddings / norms).astype(np.float32)
+
     def _build_embeddings(self, df: pd.DataFrame) -> None:
         """Encode product images and store embeddings."""
+        if df.empty:
+            logger.warning("Dataset is empty; cannot build image embeddings.")
+            self._embeddings = np.empty((0, 512), dtype=np.float32)
+            self._ids = []
+            return
         self._processor, self._model = _load_clip()
 
         rows = df if MAX_IMAGE_EMBED <= 0 else df.head(MAX_IMAGE_EMBED)
         vectors, ids = [], []
+        missing_local = 0
+        missing_remote = 0
+        encode_errors = 0
 
         for _, row in rows.iterrows():
             local_path = str(IMAGES_DIR / f"{row['id']}.png")
             img = load_image_from_path(local_path)
             if img is None:
+                missing_local += 1
                 img_url = row.get("img", "")
                 if img_url:
                     img = load_image_from_url(img_url)
+                else:
+                    missing_remote += 1
             if img is None:
+                if row.get("img", ""):
+                    missing_remote += 1
                 continue
             try:
                 vec = _encode_image(img, self._processor, self._model)
                 vectors.append(vec)
                 ids.append(str(row["id"]))
             except Exception as exc:
+                encode_errors += 1
                 logger.debug("Skipping product %s: %s", row["id"], exc)
 
         if not vectors:
@@ -109,8 +141,16 @@ class ImageRetrieval:
             return
 
         self._embeddings = np.stack(vectors, axis=0).astype(np.float32)
+        self._normalise_embeddings()
         self._ids = ids
-        logger.info("Built %d image embeddings.", len(ids))
+        logger.info(
+            "Built %d image embeddings (rows=%d, local_misses=%d, remote_misses=%d, encode_errors=%d).",
+            len(ids),
+            len(rows),
+            missing_local,
+            missing_remote,
+            encode_errors,
+        )
 
     def _save_embeddings(self) -> None:
         try:
@@ -128,8 +168,19 @@ class ImageRetrieval:
                 and Path(EMBEDDINGS_IDS_FILE).exists()
             ):
                 return False
-            self._embeddings = np.load(EMBEDDINGS_FILE)
-            self._ids = list(np.load(EMBEDDINGS_IDS_FILE, allow_pickle=True))
+            embeddings = np.load(EMBEDDINGS_FILE).astype(np.float32)
+            ids = list(np.load(EMBEDDINGS_IDS_FILE, allow_pickle=True))
+            if embeddings.ndim != 2:
+                raise ValueError(
+                    f"Invalid embeddings shape {embeddings.shape}; expected 2-D matrix."
+                )
+            if embeddings.shape[0] != len(ids):
+                raise ValueError(
+                    f"Embeddings count {embeddings.shape[0]} does not match id count {len(ids)}."
+                )
+            self._embeddings = embeddings
+            self._normalise_embeddings()
+            self._ids = [str(i) for i in ids]
             logger.info(
                 "Image embeddings loaded from cache: %d vectors.", len(self._ids)
             )
@@ -155,14 +206,34 @@ class ImageRetrieval:
 
     def initialize(self) -> None:
         """Prepare CLIP model and embeddings index."""
-        self._df = load_data()
-        if not self._load_embeddings():
-            self._build_embeddings(self._df)
-            self._save_embeddings()
-        # Load CLIP for query encoding if not already loaded
-        if self._processor is None:
-            self._processor, self._model = _load_clip()
-        self._build_faiss_index()
+        self._init_error = None
+        try:
+            self._df = load_data()
+        except Exception as exc:
+            self._df = pd.DataFrame()
+            self._init_error = f"Dataset load failed: {exc}"
+            logger.exception("ImageRetrieval initialization failed during dataset load.")
+            return
+
+        try:
+            if not self._load_embeddings():
+                self._build_embeddings(self._df)
+                self._save_embeddings()
+            # Load CLIP for query encoding if not already loaded
+            if self._processor is None:
+                self._processor, self._model = _load_clip()
+            self._build_faiss_index()
+            if self._embeddings is None or self._embeddings.shape[0] == 0:
+                self._init_error = "No image embeddings available. Populate backend/data/images first."
+            logger.info(
+                "ImageRetrieval initialized (products=%d, embeddings=%d, faiss=%s).",
+                len(self._df),
+                len(self._ids),
+                self._faiss_index is not None,
+            )
+        except Exception as exc:
+            self._init_error = str(exc)
+            logger.exception("ImageRetrieval initialization failed: %s", exc)
 
     # ------------------------------------------------------------------
     # Search
@@ -199,6 +270,10 @@ class ImageRetrieval:
         """
         if self._processor is None:
             self.initialize()
+
+        if self._init_error:
+            logger.warning("Image retrieval not ready: %s", self._init_error)
+            return []
 
         if self._embeddings is None or self._embeddings.shape[0] == 0:
             logger.warning("No embeddings available for image search.")
@@ -256,3 +331,23 @@ class ImageRetrieval:
         if img is None:
             return []
         return self.search(img, top_k=top_k, **kwargs)
+
+    def status(self) -> dict:
+        """Return lightweight diagnostics for health checks and startup logs."""
+        return {
+            "ready": self.is_ready(),
+            "products_count": len(self._df) if self._df is not None else 0,
+            "embeddings_count": len(self._ids),
+            "clip_loaded": self._processor is not None and self._model is not None,
+            "faiss_enabled": self._faiss_index is not None,
+            "init_error": self._init_error,
+        }
+
+    def is_ready(self) -> bool:
+        return (
+            self._init_error is None
+            and self._embeddings is not None
+            and self._embeddings.shape[0] > 0
+            and self._processor is not None
+            and self._model is not None
+        )
