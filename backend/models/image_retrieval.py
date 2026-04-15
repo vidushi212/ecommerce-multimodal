@@ -98,6 +98,9 @@ class ImageRetrieval:
         if self._embeddings is None or self._embeddings.size == 0:
             return
         norms = np.linalg.norm(self._embeddings, axis=1, keepdims=True)
+        zero_norms = int(np.sum(norms == 0))
+        if zero_norms:
+            logger.warning("Found %d zero-norm embeddings during normalisation.", zero_norms)
         norms[norms == 0] = 1.0
         self._embeddings = (self._embeddings / norms).astype(np.float32)
 
@@ -112,23 +115,23 @@ class ImageRetrieval:
 
         rows = df if MAX_IMAGE_EMBED <= 0 else df.head(MAX_IMAGE_EMBED)
         vectors, ids = [], []
-        missing_local = 0
-        missing_remote = 0
+        local_missing_attempts = 0
+        remote_unavailable_or_failed = 0
         encode_errors = 0
 
         for _, row in rows.iterrows():
             local_path = str(IMAGES_DIR / f"{row['id']}.png")
             img = load_image_from_path(local_path)
             if img is None:
-                missing_local += 1
+                local_missing_attempts += 1
                 img_url = row.get("img", "")
                 if img_url:
                     img = load_image_from_url(img_url)
                 else:
-                    missing_remote += 1
+                    remote_unavailable_or_failed += 1
             if img is None:
                 if row.get("img", ""):
-                    missing_remote += 1
+                    remote_unavailable_or_failed += 1
                 continue
             try:
                 vec = _encode_image(img, self._processor, self._model)
@@ -151,8 +154,8 @@ class ImageRetrieval:
             "Built %d image embeddings (rows=%d, local_misses=%d, remote_misses=%d, encode_errors=%d).",
             len(ids),
             len(rows),
-            missing_local,
-            missing_remote,
+            local_missing_attempts,
+            remote_unavailable_or_failed,
             encode_errors,
         )
 
