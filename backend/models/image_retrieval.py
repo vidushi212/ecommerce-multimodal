@@ -66,10 +66,14 @@ def _encode_image(image: Image.Image, processor, model) -> np.ndarray:
     vec = features.squeeze().cpu().numpy().astype(np.float32)
     norm = np.linalg.norm(vec)
     if not np.isfinite(norm) or norm <= 0:
-        raise ValueError("Invalid CLIP embedding norm for image.")
+        raise ValueError(
+            f"Invalid CLIP embedding norm ({norm}) for image. Expected a positive finite value."
+        )
     normalised = vec / norm
     if not np.all(np.isfinite(normalised)):
-        raise ValueError("CLIP embedding contains non-finite values.")
+        raise ValueError(
+            "CLIP embedding contains non-finite values (NaN/Inf). Check input image integrity."
+        )
     return normalised
 
 

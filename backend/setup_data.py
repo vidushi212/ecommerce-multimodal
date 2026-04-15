@@ -82,7 +82,7 @@ def main() -> int:
             source_root = Path(kagglehub.dataset_download(args.dataset))
             logger.info("Dataset downloaded to: %s", source_root)
         except ModuleNotFoundError:
-            logger.warning("kagglehub is not installed. Install requirements and retry download.")
+            logger.warning("kagglehub is not installed. Run: pip install -r requirements.txt")
         except Exception as exc:
             logger.warning("Dataset download failed: %s", exc)
             logger.warning("Proceeding with local files only. Ensure CSV/images already exist.")
