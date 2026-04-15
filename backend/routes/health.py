@@ -5,11 +5,21 @@ import logging
 from pathlib import Path
 from flask import Blueprint, jsonify
 from config import CSV_PATH, EMBEDDINGS_FILE, EMBEDDINGS_IDS_FILE, IMAGES_DIR
+from models.image_retrieval import ImageRetrieval
 from utils.data_loader import load_data
 
 logger = logging.getLogger(__name__)
 
 health_bp = Blueprint("health", __name__)
+_health_image_model: ImageRetrieval | None = None
+
+
+def _get_health_image_model() -> ImageRetrieval:
+    global _health_image_model
+    if _health_image_model is None:
+        _health_image_model = ImageRetrieval()
+        _health_image_model.initialize()
+    return _health_image_model
 
 
 @health_bp.route("/health", methods=["GET"])
@@ -37,25 +47,21 @@ def health():
         "embeddings_count": 0,
         "clip_loaded": False,
         "faiss_enabled": False,
-        "init_error": "Image model not initialized yet.",
+        "has_init_error": False,
     }
     try:
-        from routes.search import _get_image_model
-        image_status = _get_image_model().status()
+        internal_status = _get_health_image_model().status()
+        image_status = {
+            "ready": bool(internal_status.get("ready")),
+            "products_count": int(internal_status.get("products_count", 0)),
+            "embeddings_count": int(internal_status.get("embeddings_count", 0)),
+            "clip_loaded": bool(internal_status.get("clip_loaded")),
+            "faiss_enabled": bool(internal_status.get("faiss_enabled")),
+            "has_init_error": bool(internal_status.get("init_error")),
+        }
     except Exception:
         logger.exception("Health check image model initialization failed.")
-        image_status["init_error"] = "Initialization failed. Check backend logs."
-
-    raw_init_error = image_status.get("init_error")
-    safe_init_error = None
-    if raw_init_error:
-        if "No image embeddings available" in raw_init_error:
-            safe_init_error = raw_init_error
-        elif "Dataset load failed" in raw_init_error:
-            safe_init_error = "Dataset loading failed. Check backend logs."
-        else:
-            safe_init_error = "Image retrieval initialization failed. Check backend logs."
-    image_status["init_error"] = safe_init_error
+        image_status["has_init_error"] = True
 
     issues = []
     if dataset_error:
@@ -68,8 +74,8 @@ def health():
         issues.append(f"No local images found in: {IMAGES_DIR}")
     if not Path(EMBEDDINGS_FILE).exists() or not Path(EMBEDDINGS_IDS_FILE).exists():
         issues.append("Embeddings cache files are missing.")
-    if image_status.get("init_error"):
-        issues.append(f"Image retrieval init error: {image_status['init_error']}")
+    if image_status.get("has_init_error"):
+        issues.append("Image retrieval initialization error. Check backend logs.")
 
     overall = "ok" if not issues else "degraded"
     return jsonify({

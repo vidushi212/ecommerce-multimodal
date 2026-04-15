@@ -85,6 +85,9 @@ def main() -> int:
             logger.warning("kagglehub is not installed. Run: pip install -r requirements.txt")
         except Exception as exc:
             logger.warning("Dataset download failed: %s", exc)
+            logger.warning(
+                "If this is an auth issue, verify Kaggle credentials (~/.kaggle/kaggle.json or KAGGLE_USERNAME/KAGGLE_KEY)."
+            )
             logger.warning("Proceeding with local files only. Ensure CSV/images already exist.")
 
     target_csv = DATA_DIR / "products.csv"
