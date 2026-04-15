@@ -89,6 +89,9 @@ cd backend
 python app.py
 ```
 
+For full dataset + embedding bootstrap and troubleshooting, see:
+`backend/SETUP.md`.
+
 The API will be available at `http://localhost:5000`.
 
 On first run the server will:
