@@ -24,11 +24,12 @@ def health():
         ]
 
     products_count = 0
-    dataset_error = None
+    dataset_error = False
     try:
         products_count = len(load_data())
-    except Exception as exc:
-        dataset_error = str(exc)
+    except Exception:
+        dataset_error = True
+        logger.exception("Health check dataset load failed.")
 
     image_status = {
         "ready": False,
@@ -41,12 +42,24 @@ def health():
     try:
         from routes.search import _get_image_model
         image_status = _get_image_model().status()
-    except Exception as exc:
-        image_status["init_error"] = f"Initialization failed: {exc}"
+    except Exception:
+        logger.exception("Health check image model initialization failed.")
+        image_status["init_error"] = "Initialization failed. Check backend logs."
+
+    raw_init_error = image_status.get("init_error")
+    safe_init_error = None
+    if raw_init_error:
+        if "No image embeddings available" in raw_init_error:
+            safe_init_error = raw_init_error
+        elif "Dataset load failed" in raw_init_error:
+            safe_init_error = "Dataset loading failed. Check backend logs."
+        else:
+            safe_init_error = "Image retrieval initialization failed. Check backend logs."
+    image_status["init_error"] = safe_init_error
 
     issues = []
     if dataset_error:
-        issues.append(f"Dataset load error: {dataset_error}")
+        issues.append("Dataset load error. Check backend logs.")
     if not Path(CSV_PATH).exists():
         issues.append(f"Dataset CSV missing: {CSV_PATH}")
     if not images_dir.exists():
@@ -83,8 +96,7 @@ def index():
             "name": "Multimodal E-Commerce Search API",
             "version": "1.0.0",
             "endpoints": {
-                "GET  /health": "Liveness probe",
-                "GET  /health (extended)": "Liveness + image-search readiness diagnostics",
+                "GET  /health": "Liveness + readiness diagnostics",
                 "POST /search/text": "Text-based product search (TF-IDF)",
                 "POST /search/image": "Image-based product search (CLIP + FAISS)",
                 "POST /search/hybrid": "Hybrid text + image search",
