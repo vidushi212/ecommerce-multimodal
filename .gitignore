@@ -18,9 +18,6 @@ build/
 *.swp
 .DS_Store
 
-# Generated / cached data — do NOT commit large binary artefacts
-backend/data/embeddings/
-backend/data/images/
 
 # Kaggle credentials
 ~/.kaggle/
