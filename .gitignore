@@ -30,3 +30,4 @@ backend/data/images/
 # Logs
 *.log
 nohup.out
+backend/data/images/
