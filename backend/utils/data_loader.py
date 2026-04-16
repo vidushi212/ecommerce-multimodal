@@ -85,12 +85,9 @@ def product_row_to_dict(row: pd.Series) -> dict:
     local_img = row.get("local_image", "")
     img_url = row.get("img", "")
 
-    # Prefer local image if it exists, otherwise use the remote URL
-    display_image = (
-        f"/api/images/{row['id']}"
-        if Path(local_img).exists()
-        else img_url
-    )
+    # Use remote image URL from CSV (local images don't exist)
+    # The img column in the CSV has the product image URLs
+    display_image = img_url if img_url else f"/api/images/{row['id']}"
 
     return {
         "id": str(row["id"]),

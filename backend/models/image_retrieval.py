@@ -104,13 +104,40 @@ class ImageRetrieval:
         norms[norms == 0] = 1.0
         self._embeddings = (self._embeddings / norms).astype(np.float32)
 
+    # Replace lines 107-160 with this:
+
     def _build_embeddings(self, df: pd.DataFrame) -> None:
-        """Encode product images and store embeddings."""
+        """
+        Load pre-generated embeddings from Colab or build them if needed.
+        
+        IMPORTANT: Pre-generated embeddings were created with OpenAI CLIP 
+        on Google Colab GPU and are stored in backend/data/embeddings/
+        """
         if df.empty:
             logger.warning("Dataset is empty; cannot build image embeddings.")
             self._embeddings = np.empty((0, 512), dtype=np.float32)
             self._ids = []
             return
+        
+        # Try to load pre-generated embeddings first
+        embeddings_path = Path(EMBEDDINGS_FILE)
+        ids_path = Path(EMBEDDINGS_IDS_FILE)
+        
+        if embeddings_path.exists() and ids_path.exists():
+            try:
+                self._embeddings = np.load(embeddings_path).astype(np.float32)
+                self._ids = [str(i) for i in np.load(ids_path, allow_pickle=True)]
+                self._normalise_embeddings()
+                logger.info(
+                    "✅ Loaded pre-generated embeddings from Colab: %d vectors",
+                    len(self._ids),
+                )
+                return
+            except Exception as exc:
+                logger.warning("Could not load pre-generated embeddings: %s. Building from scratch...", exc)
+        
+        # If pre-generated embeddings not found, fall back to CLIP encoding
+        logger.info("⚙️ Building embeddings from scratch using CLIP...")
         self._processor, self._model = _load_clip()
 
         rows = df if MAX_IMAGE_EMBED <= 0 else df.head(MAX_IMAGE_EMBED)
