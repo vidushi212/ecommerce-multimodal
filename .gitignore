@@ -18,6 +18,7 @@ build/
 *.swp
 .DS_Store
 
+backend/data/images/
 
 # Kaggle credentials
 ~/.kaggle/
