@@ -184,6 +184,13 @@
           />
         </div>
 
+        <div class="alpha-analyzer mt-1" id="hybrid-alpha-analyzer">
+          <div class="alpha-analyzer-title">📊 Alpha Analyzer</div>
+          <div id="hybrid-alpha-summary">Suggested alpha: 0.50</div>
+          <div id="hybrid-alpha-detected" class="alpha-analyzer-muted">Detected: —</div>
+          <div id="hybrid-alpha-reason" class="alpha-analyzer-muted">Reason: Default balanced multimodal weighting.</div>
+        </div>
+
         <div class="upload-area small mt-1" id="hybrid-upload-area">
           <input type="file" id="hybrid-image-input" accept="image/*" hidden />
           <div class="upload-placeholder" id="hybrid-upload-placeholder">
@@ -196,6 +203,12 @@
         <details class="filters-panel mt-1">
           <summary>⚙️ Options</summary>
           <div class="filters-grid">
+            <div class="filter-group">
+              <label>
+                <input type="checkbox" id="hybrid-use-suggested" checked />
+                Use suggested alpha automatically
+              </label>
+            </div>
             <div class="filter-group">
               <label for="hybrid-alpha">Text weight (alpha): <strong id="hybrid-alpha-val">50%</strong></label>
               <input type="range" id="hybrid-alpha" min="0" max="100" step="5" value="50" />

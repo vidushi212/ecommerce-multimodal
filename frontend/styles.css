@@ -243,6 +243,24 @@ main { padding: 2rem 1.5rem; }
 .checkbox-group { flex-direction: row; align-items: center; }
 .checkbox-group label { display: flex; align-items: center; gap: 0.4rem; cursor: pointer; }
 
+.alpha-analyzer {
+  background: var(--color-primary-light);
+  border: 1px solid #ddd6fe;
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+}
+
+.alpha-analyzer-title {
+  color: var(--color-primary);
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.alpha-analyzer-muted {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
 .mt-1 { margin-top: 1rem; }
 
 /* ---- Upload Area ---- */

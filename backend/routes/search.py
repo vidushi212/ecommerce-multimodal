@@ -10,6 +10,7 @@ from models.text_retrieval import TextRetrieval
 from models.image_retrieval import ImageRetrieval
 from models.hybrid_retrieval import HybridRetrieval
 from utils.evaluation import evaluate_retrieval
+from utils.query_analyzer import analyze_query_details
 from utils.preprocessing import load_image_from_bytes
 
 logger = logging.getLogger(__name__)
@@ -184,9 +185,9 @@ def hybrid_search():
 
     Request: multipart/form-data with:
         - "image": image file
-        - "query": text field
+        - "query": optional text field
         - "description": optional text field
-        - "alpha": float 0-1 (default 0.5)
+        - "alpha": optional float 0-1 override
     Optional query params: top_k, brand, min_price, max_price.
 
     Returns:
@@ -194,8 +195,8 @@ def hybrid_search():
     """
     query = (request.form.get("query") or "").strip()
     description = (request.form.get("description") or "").strip()
-    if "image" not in request.files or not query:
-        return jsonify({"error": "Both 'query' and 'image' are required"}), 400
+    if "image" not in request.files:
+        return jsonify({"error": "'image' is required"}), 400
 
     file = request.files["image"]
     image_bytes = file.read()
@@ -207,17 +208,25 @@ def hybrid_search():
         return jsonify({"error": "Could not decode image"}), 400
 
     top_k = _parse_top_k(request.args)
-    try:
-        alpha = float(request.form.get("alpha", 0.5))
-    except (TypeError, ValueError):
-        alpha = 0.5
-    alpha = max(0.0, min(1.0, alpha))
     filters = _parse_filters(request.args)
     effective_query = (
         f"{query.strip()} {description.strip()}".strip()
         if description
         else query
     )
+    alpha_info = analyze_query_details(effective_query, has_image=True)
+    computed_alpha = float(alpha_info["alpha"])
+
+    alpha_override = request.form.get("alpha")
+    alpha = computed_alpha
+    alpha_override_applied = False
+    if alpha_override not in (None, ""):
+        try:
+            alpha = max(0.0, min(1.0, float(alpha_override)))
+            alpha_override_applied = True
+        except (TypeError, ValueError):
+            alpha = computed_alpha
+
     method = "hybrid_refined" if description else "hybrid"
 
     try:
@@ -229,6 +238,12 @@ def hybrid_search():
             "query": query,
             "description": description or None,
             "alpha": alpha,
+            "alpha_used": alpha,
+            "computed_alpha": computed_alpha,
+            "alpha_override": alpha if alpha_override_applied else None,
+            "alpha_override_applied": alpha_override_applied,
+            "alpha_reasoning": alpha_info["reason"],
+            "alpha_detected": alpha_info["detected"],
             "count": len(results),
             "method": method,
             "filters": {
