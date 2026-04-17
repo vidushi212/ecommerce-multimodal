@@ -119,7 +119,7 @@
 
     <section class="search-panel hidden" id="panel-image" role="tabpanel">
       <h2>🖼️ Image Search</h2>
-      <p class="panel-desc">Upload a product image to find visually similar items. <strong>✨ Optionally describe what you want!</strong></p>
+      <p class="panel-desc">Upload a product image to find visually similar items.</p>
     
       <form class="search-form" id="form-image" enctype="multipart/form-data">
         <!-- Upload Area -->
@@ -131,22 +131,6 @@
             <p class="upload-hint">Supports JPG, PNG, WEBP</p>
           </div>
           <img id="preview-image" class="preview-image hidden" alt="Preview" />
-        </div>
-    
-        <!-- NEW: Description Field for Image Refinement -->
-        <div class="description-section mt-1">
-          <label for="image-description">
-            <strong>✨ Refine with description (optional)</strong>
-          </label>
-          <input
-            type="text"
-            id="image-description"
-            placeholder="e.g., 'black color, silk material, casual style'"
-            class="description-input"
-          />
-          <small class="description-hint">
-            💡 Tip: Add details like color, material, style, or occasion to get more accurate results!
-          </small>
         </div>
     
         <!-- Filters -->
@@ -178,7 +162,7 @@
     <!-- ---- HYBRID SEARCH PANEL ---- -->
     <section class="search-panel hidden" id="panel-hybrid" role="tabpanel">
       <h2>Hybrid Search</h2>
-      <p class="panel-desc">Combine a text query with an image for more precise results.</p>
+      <p class="panel-desc">Combine text + image, then optionally refine with description and filters.</p>
 
       <form class="search-form" id="form-hybrid" enctype="multipart/form-data">
         <div class="input-row">
@@ -188,6 +172,15 @@
             class="search-input"
             placeholder="Describe what you are looking for…"
             required
+          />
+        </div>
+
+        <div class="filter-group mt-1">
+          <label for="hybrid-description">Optional refinement description</label>
+          <input
+            type="text"
+            id="hybrid-description"
+            placeholder="e.g. black color, silk fabric, party wear"
           />
         </div>
 
@@ -204,9 +197,20 @@
           <summary>⚙️ Options</summary>
           <div class="filters-grid">
             <div class="filter-group">
-              <label for="hybrid-alpha">Text weight (alpha)</label>
-              <input type="range" id="hybrid-alpha" min="0" max="1" step="0.1" value="0.5" />
-              <span id="hybrid-alpha-val">0.5</span>
+              <label for="hybrid-alpha">Text weight (alpha): <strong id="hybrid-alpha-val">50%</strong></label>
+              <input type="range" id="hybrid-alpha" min="0" max="100" step="5" value="50" />
+            </div>
+            <div class="filter-group">
+              <label for="hybrid-brand">Brand</label>
+              <input type="text" id="hybrid-brand" placeholder="e.g. Zara" />
+            </div>
+            <div class="filter-group">
+              <label for="hybrid-min-price">Min Price (₹)</label>
+              <input type="number" id="hybrid-min-price" min="0" placeholder="0" />
+            </div>
+            <div class="filter-group">
+              <label for="hybrid-max-price">Max Price (₹)</label>
+              <input type="number" id="hybrid-max-price" min="0" placeholder="5000" />
             </div>
             <div class="filter-group">
               <label for="hybrid-top-k">Results (K)</label>

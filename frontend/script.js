@@ -110,7 +110,7 @@ document.getElementById("form-text").addEventListener("submit", async (e) => {
 });
 
 // ============================================================
-// Image Search (UPDATED with description support)
+// Image Search
 // ============================================================
 const imageInput         = document.getElementById("image-input");
 const imgSearchBtn       = document.getElementById("img-search-btn");
@@ -118,7 +118,6 @@ const previewImage       = document.getElementById("preview-image");
 const uploadPlaceholder  = document.getElementById("upload-placeholder");
 const uploadArea         = document.getElementById("upload-area");
 const browseBtn          = document.getElementById("browse-btn");
-const imageDescription   = document.getElementById("image-description");  // NEW
 
 browseBtn.addEventListener("click", (e) => {
   e.preventDefault();
@@ -180,9 +179,6 @@ document.getElementById("form-image").addEventListener("submit", async (e) => {
   const brand = document.getElementById("img-brand").value.trim() || null;
   const minP  = parseFloat(document.getElementById("img-min-price").value) || null;
   const maxP  = parseFloat(document.getElementById("img-max-price").value) || null;
-  
-  // NEW: Get description if provided
-  const description = imageDescription.value.trim() || null;
 
   const params = new URLSearchParams({ top_k: topK });
   if (brand) params.set("brand", brand);
@@ -191,38 +187,16 @@ document.getElementById("form-image").addEventListener("submit", async (e) => {
 
   const formData = new FormData();
   formData.append("image", file);
-  
-  // NEW: Add description if provided
-  if (description) {
-    formData.append("description", description);
-  }
-
-  // NEW: Use image-with-description endpoint if description provided
-  const endpoint = description 
-    ? `/search/image-with-description?${params}`
-    : `/search/image?${params}`;
 
   const data = await apiRequest(
     "POST",
-    endpoint,
+    `/search/image?${params}`,
     formData,
     "form"
   );
-  
+
   if (data) {
-    // NEW: Better title that shows search method
-    let title = "🖼️ Image Search Results";
-    
-    if (data.method === "combined" || description) {
-      title = `🎯 Image + Description Results`;
-      if (description) {
-        title += ` • Refined by: <em>"${description}"</em>`;
-      }
-    }
-    
-    title += ` (${data.count})`;
-    
-    resultsTitle.innerHTML = title;  // Use innerHTML for the em tag
+    resultsTitle.textContent = `🖼️ Image Search Results (${data.count})`;
     renderResults(data.results);
     feedbackControls.classList.add("hidden");
   }
@@ -238,19 +212,48 @@ const hybridBrowseBtn     = document.getElementById("hybrid-browse-btn");
 const hybridSearchBtn     = document.getElementById("hybrid-search-btn");
 const hybridAlpha         = document.getElementById("hybrid-alpha");
 const hybridAlphaVal      = document.getElementById("hybrid-alpha-val");
+const hybridDescription   = document.getElementById("hybrid-description");
 
-hybridBrowseBtn.addEventListener("click", () => hybridImageInput.click());
+hybridBrowseBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  hybridImageInput.click();
+});
 hybridUploadArea.addEventListener("click", (e) => {
   if (e.target !== hybridBrowseBtn) hybridImageInput.click();
 });
 
 hybridAlpha.addEventListener("input", () => {
-  hybridAlphaVal.textContent = hybridAlpha.value;
+  hybridAlphaVal.textContent = `${hybridAlpha.value}%`;
 });
 
-hybridImageInput.addEventListener("change", () => {
-  const file = hybridImageInput.files[0];
+hybridImageInput.addEventListener("change", () => handleHybridImageFile(hybridImageInput.files[0]));
+
+["dragover", "dragenter"].forEach((ev) =>
+  hybridUploadArea.addEventListener(ev, (e) => {
+    e.preventDefault();
+    hybridUploadArea.classList.add("drag-over");
+  })
+);
+
+["dragleave", "drop"].forEach((ev) =>
+  hybridUploadArea.addEventListener(ev, (e) => {
+    e.preventDefault();
+    hybridUploadArea.classList.remove("drag-over");
+    if (ev === "drop" && e.dataTransfer.files[0]) {
+      handleHybridImageFile(e.dataTransfer.files[0]);
+    }
+  })
+);
+
+function handleHybridImageFile(file) {
   if (!file) return;
+  if (file.size === 0) {
+    return showError("The selected image file is empty.");
+  }
+  if (!file.type.startsWith("image/")) {
+    return showError("Please select a valid image file.");
+  }
+
   const reader = new FileReader();
   reader.onload = (ev) => {
     hybridPreview.src = ev.target.result;
@@ -259,8 +262,11 @@ hybridImageInput.addEventListener("change", () => {
     hybridSearchBtn.disabled = false;
     hybridImageInput._file = file;
   };
+  reader.onerror = () => {
+    showError("Failed to read the image file.");
+  };
   reader.readAsDataURL(file);
-});
+}
 
 document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
   e.preventDefault();
@@ -270,13 +276,25 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
   if (!file)  return showError("Please upload a reference image.");
 
   const topK  = parseInt(document.getElementById("hybrid-top-k").value, 10) || 12;
-  const alpha = parseFloat(hybridAlpha.value);
+  const alphaPercent = parseFloat(hybridAlpha.value);
+  const alpha = Number.isFinite(alphaPercent)
+    ? Math.max(0, Math.min(1, alphaPercent / 100))
+    : 0.5;
+  const description = hybridDescription.value.trim() || null;
+  const brand = document.getElementById("hybrid-brand").value.trim() || null;
+  const minP = parseFloat(document.getElementById("hybrid-min-price").value) || null;
+  const maxP = parseFloat(document.getElementById("hybrid-max-price").value) || null;
 
   const params = new URLSearchParams({ top_k: topK });
+  if (brand) params.set("brand", brand);
+  if (minP != null) params.set("min_price", minP);
+  if (maxP != null) params.set("max_price", maxP);
+
   const formData = new FormData();
   formData.append("query", query);
   formData.append("image", file);
-  formData.append("alpha", alpha);
+  formData.append("alpha", alpha.toString());
+  if (description) formData.append("description", description);
 
   const data = await apiRequest(
     "POST",
@@ -285,7 +303,14 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
     "form"
   );
   if (data) {
-    renderResults(data.results, `Hybrid Results for "${query}" (${data.count})`);
+    const methodLabel = data.method === "hybrid_refined"
+      ? "🎯 Hybrid Refined (Text + Image + Description)"
+      : "✨ Hybrid (Text + Image)";
+    let title = `${methodLabel} — "${query}" (${data.count})`;
+    if (description) {
+      title += ` • Refined by: "${description}"`;
+    }
+    renderResults(data.results, title);
     feedbackControls.classList.add("hidden");
   }
 });
