@@ -247,6 +247,9 @@ hybridImageInput.addEventListener("change", () => handleHybridImageFile(hybridIm
 
 function handleHybridImageFile(file) {
   if (!file) return;
+  if (file.size <= 0) {
+    return showError("The selected image file is empty.");
+  }
   if (!file.type.startsWith("image/")) {
     return showError("Please select a valid image file.");
   }
@@ -274,7 +277,9 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
 
   const topK  = parseInt(document.getElementById("hybrid-top-k").value, 10) || 12;
   const alphaPercent = parseFloat(hybridAlpha.value);
-  const alpha = Number.isFinite(alphaPercent) ? alphaPercent / 100 : 0.5;
+  const alpha = Number.isFinite(alphaPercent)
+    ? Math.max(0, Math.min(1, alphaPercent / 100))
+    : 0.5;
   const description = hybridDescription.value.trim() || null;
   const brand = document.getElementById("hybrid-brand").value.trim() || null;
   const minP = parseFloat(document.getElementById("hybrid-min-price").value) || null;
