@@ -247,7 +247,7 @@ hybridImageInput.addEventListener("change", () => handleHybridImageFile(hybridIm
 
 function handleHybridImageFile(file) {
   if (!file) return;
-  if (file.size <= 0) {
+  if (file.size === 0) {
     return showError("The selected image file is empty.");
   }
   if (!file.type.startsWith("image/")) {

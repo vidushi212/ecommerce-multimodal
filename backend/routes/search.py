@@ -213,7 +213,11 @@ def hybrid_search():
         alpha = 0.5
     alpha = max(0.0, min(1.0, alpha))
     filters = _parse_filters(request.args)
-    effective_query = f"{query} {description}".strip() if description else query
+    effective_query = (
+        f"{query.strip()} {description.strip()}".strip()
+        if description
+        else query
+    )
     method = "hybrid_refined" if description else "hybrid"
 
     try:
