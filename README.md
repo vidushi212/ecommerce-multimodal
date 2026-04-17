@@ -156,8 +156,14 @@ Multipart `image` file. Optional query params: `top_k`, `brand`, `min_price`, `m
 
 ### `POST /search/hybrid`
 
-Multipart: `query` (text), `image` (file), optional `description`, `alpha` (0–1).
+Multipart: optional `query` (text), `image` (file), optional `description`, optional `alpha` (0–1 manual override).
 Optional query params: `top_k`, `brand`, `min_price`, `max_price`.
+
+If `alpha` is omitted, backend computes an adaptive value from query attributes and returns:
+- `computed_alpha` (suggested),
+- `alpha_used` (effective value),
+- `alpha_override_applied` (manual override flag),
+- `alpha_reasoning` and `alpha_detected` (explanation metadata).
 
 ### `POST /search/feedback`
 

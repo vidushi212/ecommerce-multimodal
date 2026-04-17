@@ -213,6 +213,27 @@ const hybridSearchBtn     = document.getElementById("hybrid-search-btn");
 const hybridAlpha         = document.getElementById("hybrid-alpha");
 const hybridAlphaVal      = document.getElementById("hybrid-alpha-val");
 const hybridDescription   = document.getElementById("hybrid-description");
+const hybridUseSuggested  = document.getElementById("hybrid-use-suggested");
+const hybridAlphaSummary  = document.getElementById("hybrid-alpha-summary");
+const hybridAlphaDetected = document.getElementById("hybrid-alpha-detected");
+const hybridAlphaReason   = document.getElementById("hybrid-alpha-reason");
+
+const COLOR_WORDS = new Set([
+  "black", "blue", "brown", "cream", "gold", "green", "grey", "gray",
+  "maroon", "navy", "orange", "pink", "purple", "red", "silver",
+  "white", "yellow",
+]);
+const SIZE_FIT_WORDS = new Set([
+  "xs", "s", "m", "l", "xl", "xxl", "slim", "oversized", "regular",
+  "loose", "fitted",
+]);
+const MATERIAL_WORDS = new Set([
+  "cotton", "denim", "linen", "polyester", "rayon", "satin", "silk",
+  "wool",
+]);
+const OCCASION_WORDS = new Set([
+  "casual", "ethnic", "formal", "office", "party", "wedding",
+]);
 
 hybridBrowseBtn.addEventListener("click", (e) => {
   e.preventDefault();
@@ -225,6 +246,9 @@ hybridUploadArea.addEventListener("click", (e) => {
 hybridAlpha.addEventListener("input", () => {
   hybridAlphaVal.textContent = `${hybridAlpha.value}%`;
 });
+hybridUseSuggested.addEventListener("change", syncHybridAlphaMode);
+document.getElementById("hybrid-query").addEventListener("input", refreshHybridSuggestion);
+hybridDescription.addEventListener("input", refreshHybridSuggestion);
 
 hybridImageInput.addEventListener("change", () => handleHybridImageFile(hybridImageInput.files[0]));
 
@@ -261,11 +285,122 @@ function handleHybridImageFile(file) {
     hybridPlaceholder.classList.add("hidden");
     hybridSearchBtn.disabled = false;
     hybridImageInput._file = file;
+    refreshHybridSuggestion();
   };
   reader.onerror = () => {
     showError("Failed to read the image file.");
   };
   reader.readAsDataURL(file);
+}
+
+function tokenizeQuery(q) {
+  return (q || "")
+    .split(/\s+/)
+    .map((t) => t.toLowerCase().replace(/^[^a-z0-9]+|[^a-z0-9]+$/g, ""))
+    .filter(Boolean);
+}
+
+function detectWords(tokens, vocab) {
+  return Array.from(new Set(tokens.filter((t) => vocab.has(t)))).sort();
+}
+
+function analyzeQueryForAlphaLocal(query, hasImage) {
+  const normalizedQuery = (query || "").trim();
+  const tokens = tokenizeQuery(normalizedQuery);
+  const queryLen = normalizedQuery.length;
+
+  const colors = detectWords(tokens, COLOR_WORDS);
+  const sizes = detectWords(tokens, SIZE_FIT_WORDS);
+  const materials = detectWords(tokens, MATERIAL_WORDS);
+  const occasions = detectWords(tokens, OCCASION_WORDS);
+
+  const hasColor = colors.length > 0;
+  const hasSize = sizes.length > 0;
+  const hasMaterial = materials.length > 0;
+  const hasOccasion = occasions.length > 0;
+
+  let alpha = hasImage ? 0.5 : 0.85;
+  let reason = "Default balanced multimodal weighting.";
+
+  if (hasImage && queryLen > 0 && queryLen <= 10) {
+    alpha = Math.max(alpha, 0.8);
+    reason = "Short query with image; increasing text weight for specificity.";
+  } else if (!hasImage && queryLen > 20) {
+    alpha = Math.max(alpha, 0.9);
+    reason = "Detailed text-only query; strongly text-dominant.";
+  } else if (hasImage && queryLen > 20) {
+    alpha = Math.max(alpha, 0.6);
+    reason = "Detailed query with image; keeping both modalities active.";
+  }
+
+  if (hasColor) alpha -= 0.1;
+  if (hasSize) alpha += 0.1;
+  if (hasMaterial) alpha += 0.05;
+  if (hasOccasion) alpha += 0.05;
+
+  if (!hasImage) {
+    alpha = Math.max(alpha, 0.85);
+    reason = "No image uploaded; text-dominant weighting.";
+  } else if (queryLen < 5) {
+    alpha = Math.max(alpha, 0.85);
+    reason = "Very short query with image; using image-heavy guidance profile.";
+  } else if (hasSize) {
+    alpha = Math.max(alpha, 0.7);
+    reason = "Size/fit terms detected; prioritizing text semantics.";
+  } else if (hasColor && hasMaterial) {
+    alpha = Math.max(alpha, 0.65);
+    reason = "Color + material detected; using balanced text/image weighting.";
+  } else if (hasColor && !hasMaterial && !hasOccasion) {
+    alpha = Math.max(alpha, 0.6);
+    reason = "Primarily visual color intent detected; keeping balance.";
+  } else if (queryLen > 20) {
+    alpha = Math.max(alpha, 0.55);
+    reason = "Detailed query with image; both modalities are informative.";
+  } else {
+    alpha = Math.max(alpha, 0.5);
+    reason = "Default balanced multimodal weighting.";
+  }
+
+  alpha = Math.max(0, Math.min(1, Math.round(alpha * 100) / 100));
+  return {
+    alpha,
+    reason,
+    detected: { colors, sizes_or_fit: sizes, materials, occasions },
+  };
+}
+
+function formatDetected(detected) {
+  const parts = [];
+  if (detected.colors?.length) parts.push(`Color (${detected.colors.join(", ")})`);
+  if (detected.materials?.length) parts.push(`Material (${detected.materials.join(", ")})`);
+  if (detected.sizes_or_fit?.length) parts.push(`Size/Fit (${detected.sizes_or_fit.join(", ")})`);
+  if (detected.occasions?.length) parts.push(`Occasion (${detected.occasions.join(", ")})`);
+  return parts.length ? parts.join(" + ") : "—";
+}
+
+function updateAlphaAnalyzerUI(alpha, reason, detected) {
+  hybridAlphaSummary.textContent = `Suggested alpha: ${alpha.toFixed(2)} (${Math.round(alpha * 100)}% text weight)`;
+  hybridAlphaDetected.textContent = `Detected: ${formatDetected(detected)}`;
+  hybridAlphaReason.textContent = `Reason: ${reason}`;
+  if (hybridUseSuggested.checked) {
+    hybridAlpha.value = String(Math.round(alpha * 100));
+    hybridAlphaVal.textContent = `${hybridAlpha.value}%`;
+  }
+}
+
+function refreshHybridSuggestion() {
+  const query = document.getElementById("hybrid-query").value.trim();
+  const description = hybridDescription.value.trim();
+  const mergedQuery = [query, description].filter(Boolean).join(" ").trim();
+  const hasImage = Boolean(hybridImageInput._file);
+  const suggestion = analyzeQueryForAlphaLocal(mergedQuery, hasImage);
+  updateAlphaAnalyzerUI(suggestion.alpha, suggestion.reason, suggestion.detected);
+}
+
+function syncHybridAlphaMode() {
+  const useSuggested = hybridUseSuggested.checked;
+  hybridAlpha.disabled = useSuggested;
+  refreshHybridSuggestion();
 }
 
 document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
@@ -293,7 +428,9 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
   const formData = new FormData();
   formData.append("query", query);
   formData.append("image", file);
-  formData.append("alpha", alpha.toString());
+  if (!hybridUseSuggested.checked) {
+    formData.append("alpha", alpha.toString());
+  }
   if (description) formData.append("description", description);
 
   const data = await apiRequest(
@@ -303,6 +440,13 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
     "form"
   );
   if (data) {
+    const suggestedAlpha = Number.isFinite(data.computed_alpha) ? data.computed_alpha : 0.5;
+    const usedAlpha = Number.isFinite(data.alpha_used) ? data.alpha_used : suggestedAlpha;
+    const detected = data.alpha_detected || {};
+    const reason = data.alpha_reasoning || "Default balanced multimodal weighting.";
+    updateAlphaAnalyzerUI(suggestedAlpha, reason, detected);
+    hybridAlphaSummary.textContent = `${hybridAlphaSummary.textContent} • Used: ${usedAlpha.toFixed(2)}${data.alpha_override_applied ? " (manual override)" : " (auto)"}`;
+
     const methodLabel = data.method === "hybrid_refined"
       ? "🎯 Hybrid Refined (Text + Image + Description)"
       : "✨ Hybrid (Text + Image)";
@@ -314,6 +458,7 @@ document.getElementById("form-hybrid").addEventListener("submit", async (e) => {
     feedbackControls.classList.add("hidden");
   }
 });
+syncHybridAlphaMode();
 
 // ============================================================
 // Evaluate
