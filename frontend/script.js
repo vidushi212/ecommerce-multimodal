@@ -110,7 +110,7 @@ document.getElementById("form-text").addEventListener("submit", async (e) => {
 });
 
 // ============================================================
-// Image Search
+// Image Search (UPDATED with description support)
 // ============================================================
 const imageInput         = document.getElementById("image-input");
 const imgSearchBtn       = document.getElementById("img-search-btn");
@@ -118,8 +118,13 @@ const previewImage       = document.getElementById("preview-image");
 const uploadPlaceholder  = document.getElementById("upload-placeholder");
 const uploadArea         = document.getElementById("upload-area");
 const browseBtn          = document.getElementById("browse-btn");
+const imageDescription   = document.getElementById("image-description");  // NEW
 
-browseBtn.addEventListener("click", () => imageInput.click());
+browseBtn.addEventListener("click", (e) => {
+  e.preventDefault();
+  imageInput.click();
+});
+
 uploadArea.addEventListener("click", (e) => {
   if (e.target !== browseBtn) imageInput.click();
 });
@@ -133,6 +138,7 @@ imageInput.addEventListener("change", () => handleImageFile(imageInput.files[0])
     uploadArea.classList.add("drag-over");
   })
 );
+
 ["dragleave", "drop"].forEach((ev) =>
   uploadArea.addEventListener(ev, (e) => {
     e.preventDefault();
@@ -145,6 +151,12 @@ imageInput.addEventListener("change", () => handleImageFile(imageInput.files[0])
 
 function handleImageFile(file) {
   if (!file) return;
+  
+  // Validate file type
+  if (!file.type.startsWith("image/")) {
+    return showError("Please select a valid image file.");
+  }
+  
   const reader = new FileReader();
   reader.onload = (ev) => {
     previewImage.src = ev.target.result;
@@ -152,6 +164,9 @@ function handleImageFile(file) {
     uploadPlaceholder.classList.add("hidden");
     imgSearchBtn.disabled = false;
     imageInput._file = file;
+  };
+  reader.onerror = () => {
+    showError("Failed to read the image file.");
   };
   reader.readAsDataURL(file);
 }
@@ -165,6 +180,9 @@ document.getElementById("form-image").addEventListener("submit", async (e) => {
   const brand = document.getElementById("img-brand").value.trim() || null;
   const minP  = parseFloat(document.getElementById("img-min-price").value) || null;
   const maxP  = parseFloat(document.getElementById("img-max-price").value) || null;
+  
+  // NEW: Get description if provided
+  const description = imageDescription.value.trim() || null;
 
   const params = new URLSearchParams({ top_k: topK });
   if (brand) params.set("brand", brand);
@@ -173,19 +191,42 @@ document.getElementById("form-image").addEventListener("submit", async (e) => {
 
   const formData = new FormData();
   formData.append("image", file);
+  
+  // NEW: Add description if provided
+  if (description) {
+    formData.append("description", description);
+  }
+
+  // NEW: Use image-with-description endpoint if description provided
+  const endpoint = description 
+    ? `/search/image-with-description?${params}`
+    : `/search/image?${params}`;
 
   const data = await apiRequest(
     "POST",
-    `/search/image?${params}`,
+    endpoint,
     formData,
     "form"
   );
+  
   if (data) {
-    renderResults(data.results, `Image Search Results (${data.count})`);
+    // NEW: Better title that shows search method
+    let title = "🖼️ Image Search Results";
+    
+    if (data.method === "combined" || description) {
+      title = `🎯 Image + Description Results`;
+      if (description) {
+        title += ` • Refined by: <em>"${description}"</em>`;
+      }
+    }
+    
+    title += ` (${data.count})`;
+    
+    resultsTitle.innerHTML = title;  // Use innerHTML for the em tag
+    renderResults(data.results);
     feedbackControls.classList.add("hidden");
   }
 });
-
 // ============================================================
 // Hybrid Search
 // ============================================================

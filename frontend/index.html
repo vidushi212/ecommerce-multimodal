@@ -117,12 +117,12 @@
       </form>
     </section>
 
-    <!-- ---- IMAGE SEARCH PANEL ---- -->
     <section class="search-panel hidden" id="panel-image" role="tabpanel">
-      <h2>Image Search</h2>
-      <p class="panel-desc">Upload a product image to find visually similar items.</p>
-
+      <h2>🖼️ Image Search</h2>
+      <p class="panel-desc">Upload a product image to find visually similar items. <strong>✨ Optionally describe what you want!</strong></p>
+    
       <form class="search-form" id="form-image" enctype="multipart/form-data">
+        <!-- Upload Area -->
         <div class="upload-area" id="upload-area">
           <input type="file" id="image-input" accept="image/*" hidden />
           <div class="upload-placeholder" id="upload-placeholder">
@@ -132,7 +132,24 @@
           </div>
           <img id="preview-image" class="preview-image hidden" alt="Preview" />
         </div>
-
+    
+        <!-- NEW: Description Field for Image Refinement -->
+        <div class="description-section mt-1">
+          <label for="image-description">
+            <strong>✨ Refine with description (optional)</strong>
+          </label>
+          <input
+            type="text"
+            id="image-description"
+            placeholder="e.g., 'black color, silk material, casual style'"
+            class="description-input"
+          />
+          <small class="description-hint">
+            💡 Tip: Add details like color, material, style, or occasion to get more accurate results!
+          </small>
+        </div>
+    
+        <!-- Filters -->
         <div class="filters-grid mt-1">
           <div class="filter-group">
             <label for="img-brand">Brand</label>
@@ -151,7 +168,7 @@
             <input type="number" id="img-top-k" min="1" max="50" value="12" />
           </div>
         </div>
-
+    
         <button type="submit" class="btn btn-primary mt-1" id="img-search-btn" disabled>
           🔍 Find Similar Products
         </button>

@@ -234,17 +234,54 @@ def stem_tokens(tokens: list[str]) -> list[str]:
     return [_porter_stem(t) for t in tokens]
 
 
+# In backend/utils/preprocessing.py, find expand_query() and replace it:
+
 def expand_query(query: str) -> str:
     """
-    Expand a query by appending fashion-domain synonyms.
+    Expand a query by appending fashion-domain synonyms AND category-aware terms.
+    
+    Process:
+      1. Tokenize query
+      2. Add fashion synonyms for each token
+      3. Add related categories from taxonomy
+    
     Returns the augmented query string.
+    
+    Example:
+      Input:  "casual shirt"
+      Output: "casual shirt top blouse tee kurta dress gown frock outfit"
     """
+    try:
+        from utils.fashion_taxonomy import boost_query_with_taxonomy
+    except (ImportError, ModuleNotFoundError):
+        # Fallback if taxonomy not available
+        logger.debug("Fashion taxonomy not available, using basic expansion only")
+        boost_query_with_taxonomy = lambda x: x
+    
+    # Basic synonym expansion
     tokens = tokenize(query, remove_stopwords=False)
     expanded = list(tokens)
     for token in tokens:
         if token in FASHION_SYNONYMS:
             expanded.extend(FASHION_SYNONYMS[token])
-    return " ".join(expanded)
+    
+    # Add fashion taxonomy boost
+    try:
+        taxonomy_boost = boost_query_with_taxonomy(query)
+        if taxonomy_boost and taxonomy_boost != query:
+            expanded.extend(tokenize(taxonomy_boost, remove_stopwords=False))
+    except Exception as e:
+        logger.debug("Could not apply taxonomy boost: %s", e)
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_expanded = []
+    for term in expanded:
+        if term.lower() not in seen:
+            unique_expanded.append(term)
+            seen.add(term.lower())
+    
+    return " ".join(unique_expanded)
 
 
 def load_image_from_path(path: str) -> Image.Image | None:

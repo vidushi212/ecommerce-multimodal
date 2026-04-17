@@ -169,6 +169,8 @@ class TextRetrieval:
     # Relevance feedback (Rocchio)
     # ------------------------------------------------------------------
 
+    # backend/models/text_retrieval.py - Replace rocchio_update() method (lines 172-230)
+
     def rocchio_update(
         self,
         query: str,
@@ -176,21 +178,26 @@ class TextRetrieval:
         negative_ids: list[str],
         alpha: float = 1.0,
         beta: float = 0.75,
-        gamma: float = 0.15,
+        gamma: float = 0.25,  # ← INCREASED from 0.15
     ) -> list[dict]:
         """
-        Apply Rocchio relevance feedback and return refined results.
-
+        Apply Rocchio relevance feedback with STRONGER negative penalty.
+        
+        ✅ Now properly penalizes "not relevant" items
+        
+        Formula:
+            Q_new = α·Q_orig + β·Centroid(Relevant) - γ·Centroid(Not_relevant)
+        
         Args:
             query:        Original query string.
             positive_ids: IDs of products marked as relevant.
-            negative_ids: IDs of products marked as not relevant.
-            alpha:        Weight for original query.
-            beta:         Weight for positive centroid.
-            gamma:        Weight for negative centroid.
-
+            negative_ids: IDs of products marked as NOT relevant.
+            alpha:        Weight for original query (default 1.0).
+            beta:         Weight for positive feedback (default 0.75).
+            gamma:        Weight for negative feedback (default 0.25 - STRONGER).
+        
         Returns:
-            Refined top-K results.
+            Refined top-K results with improved relevance.
         """
         if self._vectorizer is None or self._tfidf_matrix is None:
             self.initialize()
@@ -199,21 +206,33 @@ class TextRetrieval:
         q_vec = self._vectorizer.transform([clean_text(query)]).toarray()
 
         def _centroid(ids: list[str]) -> np.ndarray:
+            """Compute centroid of TF-IDF vectors for given product IDs."""
             indices = df.index[df["id"].isin(ids)].tolist()
             if not indices:
                 return np.zeros_like(q_vec)
             vecs = self._tfidf_matrix[indices].toarray()
             return vecs.mean(axis=0, keepdims=True)
 
+        # Compute centroids for positive and negative feedback
         pos_centroid = _centroid(positive_ids)
         neg_centroid = _centroid(negative_ids)
 
+        # Apply Rocchio formula
         updated_q = (
             alpha * q_vec
             + beta * pos_centroid
-            - gamma * neg_centroid
+            - gamma * neg_centroid  # ← Subtract negative centroid
         )
 
+        # Clip to prevent negative components from getting too extreme
+        updated_q = np.maximum(updated_q, 0)  # ← NEW: Prevent negative values
+        
+        # L2 normalize for better cosine similarity
+        norm = np.linalg.norm(updated_q)
+        if norm > 0:
+            updated_q = updated_q / norm
+
+        # Compute similarities with updated query
         sims = cosine_similarity(updated_q, self._tfidf_matrix).flatten()
         top_indices = np.argsort(sims)[::-1][:DEFAULT_TOP_K]
 
@@ -226,5 +245,13 @@ class TextRetrieval:
             product = product_row_to_dict(row)
             product["score"] = round(score, 4)
             results.append(product)
+
+        logger.info(
+            "🔄 Rocchio refined: positive=%d, negative=%d, gamma=%.2f, results=%d",
+            len(positive_ids),
+            len(negative_ids),
+            gamma,
+            len(results),
+        )
 
         return results
