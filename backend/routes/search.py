@@ -128,149 +128,14 @@ def text_search():
 # In backend/routes/search.py, add this new route after @search_bp.route("/image")
 
 # ------------------------------------------------------------------
-# POST /search/image-with-description (NEW ENDPOINT)
+# POST /search/image-with-description (DEPRECATED)
 # ------------------------------------------------------------------
 
 @search_bp.route("/image-with-description", methods=["POST"])
 def image_with_description_search():
-    """
-    🆕 NOVEL FEATURE: Combined Image Search with optional TEXT DESCRIPTION.
-    
-    This endpoint enables users to:
-      1. Upload an image (required)
-      2. Add a text description to refine results (optional)
-      3. Get results ranked by: 70% image similarity + 30% description match
-    
-    Example use case:
-      - User uploads photo of a dress
-      - User adds description: "I want it in BLACK COLOR, SILK MATERIAL"
-      - System combines visual similarity + text attribute matching
-    
-    Request: multipart/form-data
-      Fields:
-        - "image": image file (required)
-        - "description": text description (optional)
-      Query params:
-        - "top_k": number of results (default 12)
-        - "brand": brand filter
-        - "min_price": minimum price filter
-        - "max_price": maximum price filter
-    
-    Returns:
-      {
-        "results": [...],
-        "count": 12,
-        "description": "black color, silk material" (if provided),
-        "method": "combined" (if description provided) or "image_only"
-      }
-    """
-    if "image" not in request.files:
-        return jsonify({"error": "image file is required"}), 400
-
-    file = request.files["image"]
-    image_bytes = file.read()
-    if not image_bytes:
-        return jsonify({"error": "uploaded file is empty"}), 400
-
-    # Get optional description
-    description = request.form.get("description", "").strip()
-    top_k = _parse_top_k(request.args)
-    filters = _parse_filters(request.args)
-
-    try:
-        image_model = _get_image_model()
-        text_model = _get_text_model()
-        
-        # Get image search results (fetch 2x to have enough candidates)
-        image_results = image_model.search_from_bytes(
-            image_bytes, top_k=top_k * 2, **filters
-        )
-        
-        if not image_results:
-            return jsonify({
-                "results": [],
-                "count": 0,
-                "description": description if description else None,
-                "method": "combined" if description else "image_only"
-            })
-        
-        # If description provided, also search by text and combine
-        if description:
-            logger.info("🔍 Image+Description search: description='%s'", description)
-            
-            text_results = text_model.search(
-                description, top_k=top_k * 2, **filters
-            )
-            
-            # Build score maps
-            image_score_map = {p["id"]: p["score"] for p in image_results}
-            text_score_map = {p["id"]: p["score"] for p in text_results}
-            
-            # Get union of all IDs
-            all_ids = set(image_score_map.keys()) | set(text_score_map.keys())
-            
-            # Normalize scores to [0, 1]
-            def normalize_scores(score_map):
-                if not score_map:
-                    return {}
-                max_score = max(score_map.values()) or 1.0
-                return {k: v / max_score for k, v in score_map.items()}
-            
-            img_norm = normalize_scores(image_score_map)
-            txt_norm = normalize_scores(text_score_map)
-            
-            # Build combined scores: 70% image + 30% text
-            combined_scores = {}
-            for pid in all_ids:
-                img_score = img_norm.get(pid, 0.0)
-                txt_score = txt_norm.get(pid, 0.0)
-                combined_score = 0.7 * img_score + 0.3 * txt_score
-                combined_scores[pid] = combined_score
-            
-            # Build product metadata map
-            product_map = {}
-            for p in image_results + text_results:
-                if p["id"] not in product_map:
-                    product_map[p["id"]] = p
-            
-            # Sort by combined score and take top-K
-            sorted_ids = sorted(
-                combined_scores.items(),
-                key=lambda x: x[1],
-                reverse=True
-            )
-            
-            results = []
-            for pid, score in sorted_ids[:top_k]:
-                product = dict(product_map[pid])
-                product["score"] = round(score, 4)
-                results.append(product)
-            
-            logger.info(
-                "✅ Image+Description: combined %d image + %d text results -> %d final",
-                len(image_results),
-                len(text_results),
-                len(results)
-            )
-            
-            return jsonify({
-                "results": results,
-                "count": len(results),
-                "description": description,
-                "method": "combined"
-            })
-        else:
-            # No description, just return image results
-            return jsonify({
-                "results": image_results[:top_k],
-                "count": len(image_results[:top_k]),
-                "description": None,
-                "method": "image_only"
-            })
-    
-    except Exception:
-        logger.exception("Image+Description search error")
-        return jsonify({"error": "An internal error occurred during search."}), 500
+    return jsonify({
+        "error": "This endpoint is deprecated. Use /search/hybrid with query + image and optional description."
+    }), 410
 
 # ------------------------------------------------------------------
 # POST /search/image
@@ -320,13 +185,15 @@ def hybrid_search():
     Request: multipart/form-data with:
         - "image": image file
         - "query": text field
+        - "description": optional text field
         - "alpha": float 0-1 (default 0.5)
     Optional query params: top_k, brand, min_price, max_price.
 
     Returns:
-        { "results": [...], "query": "...", "count": N }
+        { "results": [...], "query": "...", "count": N, "method": "..." }
     """
     query = (request.form.get("query") or "").strip()
+    description = (request.form.get("description") or "").strip()
     if "image" not in request.files or not query:
         return jsonify({"error": "Both 'query' and 'image' are required"}), 400
 
@@ -340,14 +207,33 @@ def hybrid_search():
         return jsonify({"error": "Could not decode image"}), 400
 
     top_k = _parse_top_k(request.args)
-    alpha = float(request.form.get("alpha", 0.5))
+    try:
+        alpha = float(request.form.get("alpha", 0.5))
+    except (TypeError, ValueError):
+        alpha = 0.5
+    alpha = max(0.0, min(1.0, alpha))
     filters = _parse_filters(request.args)
+    effective_query = query if not description else f"{query} {description}"
+    method = "hybrid_refined" if description else "hybrid"
 
     try:
         results = _get_hybrid_model().search(
-            query, img, top_k=top_k, alpha=alpha, **filters
+            effective_query, img, top_k=top_k, alpha=alpha, **filters
         )
-        return jsonify({"results": results, "query": query, "count": len(results)})
+        response = {
+            "results": results,
+            "query": query,
+            "description": description or None,
+            "alpha": alpha,
+            "count": len(results),
+            "method": method,
+            "filters": {
+                "brand": filters.get("brand_filter"),
+                "min_price": filters.get("min_price"),
+                "max_price": filters.get("max_price"),
+            },
+        }
+        return jsonify(response)
     except Exception:
         logger.exception("Hybrid search error")
         return jsonify({"error": "An internal error occurred during hybrid search."}), 500

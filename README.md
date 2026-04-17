@@ -156,7 +156,8 @@ Multipart `image` file. Optional query params: `top_k`, `brand`, `min_price`, `m
 
 ### `POST /search/hybrid`
 
-Multipart: `query` (text), `image` (file), `alpha` (0–1).
+Multipart: `query` (text), `image` (file), optional `description`, `alpha` (0–1).
+Optional query params: `top_k`, `brand`, `min_price`, `max_price`.
 
 ### `POST /search/feedback`
 
